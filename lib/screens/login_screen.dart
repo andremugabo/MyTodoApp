@@ -84,8 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: secondaryColor,
                           ),
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
+                        // filled: true,
+                        // fillColor: Colors.grey[100],
                       ),
                       validator: (value) =>
                           value!.contains('@') ? null : 'Enter valid email',

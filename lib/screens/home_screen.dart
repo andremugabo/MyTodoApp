@@ -1,54 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:todoapp/models/filter.dart';
 import '../models/todo.dart';
 import '../widgets/todo_tile.dart';
 import 'todo_details_screen.dart';
+import '../providers/todo_provider.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   final String userName;
 
   const HomeScreen({super.key, required this.userName});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  List<Todo> _todos = [];
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   TodoFilter _currentFilter = TodoFilter.all;
 
   final primaryColor = Color(0xFFFFA726);
   final secondaryColor = Color(0xFFFFCC80);
 
-  List<Todo> get _filteredTodos {
+  List<Todo> _filteredTodos(List<Todo> todos) {
     switch (_currentFilter) {
       case TodoFilter.completed:
-        return _todos.where((t) => t.isDone).toList();
+        return todos.where((t) => t.isDone).toList();
       case TodoFilter.pending:
-        return _todos.where((t) => !t.isDone).toList();
+        return todos.where((t) => !t.isDone).toList();
       case TodoFilter.all:
-        return _todos;
+        return todos;
     }
-  }
-
-  void _addTodo(String title, String? description) {
-    setState(() {
-      _todos.add(
-        Todo(title: title, description: description),
-      );
-    });
-  }
-
-  void _toggleDone(int index) {
-    setState(() {
-      _todos[index].isDone = !_todos[index].isDone;
-    });
-  }
-
-  void _deleteTodo(int index) {
-    setState(() {
-      _todos.removeAt(index);
-    });
   }
 
   void _showAddTodoDialog() {
@@ -90,9 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                 ),
               ),
-              SizedBox(
-                height: 16,
-              ),
+              SizedBox(height: 16),
               TextField(
                 controller: descCtrl,
                 maxLines: 3,
@@ -130,7 +109,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              _addTodo(titleCtrl.text, descCtrl.text);
+              final todo =
+                  Todo(title: titleCtrl.text, description: descCtrl.text);
+              ref.read(todoProvider.notifier).addTodo(todo);
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
@@ -153,22 +134,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final todos = ref.watch(todoProvider);
+    final filteredTodos = _filteredTodos(todos);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          "My Todo Dashboard",
-          style: TextStyle(color: Colors.white),
-        ),
+        title: Text("My Todo Dashboard", style: TextStyle(color: Colors.white)),
         backgroundColor: primaryColor,
         centerTitle: true,
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: primaryColor,
         onPressed: _showAddTodoDialog,
-        child: Icon(
-          Icons.add,
-          color: Colors.white,
-        ),
+        child: Icon(Icons.add, color: Colors.white),
       ),
       body: Padding(
         padding: EdgeInsets.all(16),
@@ -183,9 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
-                SizedBox(
-                  width: 10,
-                ),
+                SizedBox(width: 10),
                 Text(
                   "Welcome, ${widget.userName}",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
@@ -193,13 +169,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(
-              height: 16,
-            ),
+            SizedBox(height: 16),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                // mainAxisAlignment: MainAxisAlignment.center,
                 children: TodoFilter.values.map((f) {
                   final isSelected = f == _currentFilter;
                   return Padding(
@@ -210,17 +183,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       selectedColor: primaryColor,
                       onSelected: (_) => setState(() => _currentFilter = f),
                       labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black),
+                        color: isSelected ? Colors.white : Colors.black,
+                      ),
                     ),
                   );
                 }).toList(),
               ),
             ),
-            SizedBox(
-              height: 16,
-            ),
+            SizedBox(height: 16),
             Expanded(
-              child: _filteredTodos.isEmpty
+              child: filteredTodos.isEmpty
                   ? Center(
                       child: Text(
                         'No Todos Found',
@@ -228,16 +200,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     )
                   : ListView.separated(
-                      itemCount: _filteredTodos.length,
-                      separatorBuilder: (_, __) => SizedBox(
-                        height: 10,
-                      ),
+                      itemCount: filteredTodos.length,
+                      separatorBuilder: (_, __) => SizedBox(height: 10),
                       itemBuilder: (_, i) {
-                        final todo = _filteredTodos[i];
+                        final todo = filteredTodos[i];
                         return Dismissible(
                           key: ValueKey(todo.id),
                           direction: DismissDirection.endToStart,
-                          onDismissed: (_) => _deleteTodo(_todos.indexOf(todo)),
+                          onDismissed: (_) => ref
+                              .read(todoProvider.notifier)
+                              .deleteTodo(todo.id),
                           confirmDismiss: (_) async {
                             return await showDialog(
                               context: context,
@@ -296,8 +268,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     const EdgeInsets.symmetric(horizontal: 8.0),
                                 child: TodoTile(
                                   todo: todo,
-                                  onChanged: (_) =>
-                                      _toggleDone(_todos.indexOf(todo)),
+                                  onChanged: (_) => ref
+                                      .read(todoProvider.notifier)
+                                      .toggleTodo(todo.id),
                                 ),
                               ),
                             ),
@@ -305,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-            )
+            ),
           ],
         ),
       ),
